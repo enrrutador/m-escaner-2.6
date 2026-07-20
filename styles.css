@@ -599,6 +599,22 @@ body {
   display: flex;
   gap: var(--space-2);
   margin-top: 2px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.result-item__brand {
+  color: var(--color-purple);
+  font-weight: 600;
+}
+.result-item__sep {
+  opacity: 0.4;
+}
+.result-item__cat {
+  font-size: 0.72rem;
+  color: var(--color-on-surface-variant);
+  margin-top: 2px;
+  font-style: italic;
+  opacity: 0.75;
 }
 .result-item__price {
   font-weight: 700;

@@ -148,6 +148,15 @@ async function buscarVtexIntelligent(fuente, base, q) {
             const item = p.items?.[0];
             const seller = item?.sellers?.[0]?.commertialOffer;
             const img = item?.images?.[0]?.imageUrl;
+            // Categoría: tomar la última de la jerarquía (más específica)
+            const categories = p.categories ?? [];
+            const categoriaRaw = categories.length ? categories[categories.length - 1] : undefined;
+            const categoria = categoriaRaw ? categoriaRaw.replace(/^\//, '').trim() : undefined;
+            // URL completa del producto en el sitio
+            const link = p.link ? (base + p.link) : undefined;
+            // Presentación: intentar extraer del nombre si existe patrón (ej: "X 500ml")
+            const nombreClean = (p.productName || '').trim();
+            const presentMatch = nombreClean.match(/\b(\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|ltr|kg|g|gr|mg|un|u|pzas|pz|pack|pack\s?\d+))\b/i);
             return {
                 nombre: p.productName ?? 'Sin nombre',
                 codigoBarras: item?.ean ?? undefined,
@@ -155,6 +164,9 @@ async function buscarVtexIntelligent(fuente, base, q) {
                 descripcion: p.description ?? undefined,
                 precio: seller?.Price ?? p.priceRange?.sellingPrice?.lowPrice ?? undefined,
                 marca: p.brand ?? undefined,
+                categoria,
+                presentacion: presentMatch ? presentMatch[0] : undefined,
+                url: link,
                 fuente,
             };
         });
@@ -175,6 +187,12 @@ async function buscarVtexCatalog(fuente, base, q) {
         return data.slice(0, 3).map((p) => {
             const item = p.items?.[0];
             const seller = item?.sellers?.[0]?.commertialOffer;
+            const categories = p.categories ?? [];
+            const categoriaRaw = categories.length ? categories[categories.length - 1] : undefined;
+            const categoria = categoriaRaw ? categoriaRaw.replace(/^\//, '').trim() : undefined;
+            const link = p.link ? (base + p.link) : undefined;
+            const nombreClean = (p.productName || '').trim();
+            const presentMatch = nombreClean.match(/\b(\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|ltr|kg|g|gr|mg|un|u|pzas|pz|pack|pack\s?\d+))\b/i);
             return {
                 nombre: p.productName ?? 'Sin nombre',
                 codigoBarras: item?.ean ?? undefined,
@@ -182,6 +200,9 @@ async function buscarVtexCatalog(fuente, base, q) {
                 descripcion: p.description ?? undefined,
                 precio: seller?.Price ?? undefined,
                 marca: p.brand ?? undefined,
+                categoria,
+                presentacion: presentMatch ? presentMatch[0] : undefined,
+                url: link,
                 fuente,
             };
         });
@@ -198,14 +219,20 @@ async function buscarCoto(q) {
         if (!res.ok) return [];
         const data = await res.json();
         const items = data?.sections?.Products ?? [];
-        return items.map((it) => ({
-            nombre: it.value ?? 'Sin nombre',
-            codigoBarras: it.data?.ean ?? undefined,
-            imagen: it.data?.image_url ?? undefined,
-            precio: it.data?.price ?? undefined,
-            marca: it.data?.brand ?? undefined,
-            fuente: 'coto',
-        }));
+        return items.map((it) => {
+            const nombreClean = (it.value || '').trim();
+            const presentMatch = nombreClean.match(/\b(\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|ltr|kg|g|gr|mg|un|u|pzas|pz|pack|pack\s?\d+))\b/i);
+            return {
+                nombre: it.value ?? 'Sin nombre',
+                codigoBarras: it.data?.ean ?? undefined,
+                imagen: it.data?.image_url ?? undefined,
+                precio: it.data?.price ?? undefined,
+                marca: it.data?.brand ?? undefined,
+                presentacion: presentMatch ? presentMatch[0] : undefined,
+                url: it.data?.url ? (it.data.url.startsWith('http') ? it.data.url : `https://www.cotodigital3.com.ar${it.data.url}`) : undefined,
+                fuente: 'coto',
+            };
+        });
     } catch (e) {
         console.error('[buscar] coto error:', e);
         return [];
@@ -324,6 +351,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const importButton       = document.getElementById('import-button');
     const exportButton       = document.getElementById('export-button');
     const themeToggle        = document.getElementById('theme-toggle');
+    // Nuevos campos
+    const marcaInput         = document.getElementById('marca');
+    const categoriaInput     = document.getElementById('categoria');
+    const presentacionInput  = document.getElementById('presentacion');
 
     let barcodeDetector;
     let productNotFoundAlertShown = false;
@@ -527,7 +558,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                     price: r.precio ?? 0,
                     image: r.imagen || '',
                     marca: r.marca || '',
-                    fuente: r.fuente || '',
+                    categoria: r.categoria || '',
+                    presentacion: r.presentacion || '',
+                    url: r.url || '',
+                    descripcionLarga: r.descripcion || '',
+                    ultimaActualizacion: Date.now(),
                 };
                 // Persistir para próximas búsquedas (solo si tiene barcode)
                 if (product.barcode) await db.addProduct(product);
@@ -551,6 +586,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         descriptionInput.value = product.description || '';
         stockInput.value       = product.stock ?? '';
         priceInput.value       = product.price ?? '';
+        if (marcaInput)     marcaInput.value       = product.marca || '';
+        if (categoriaInput) categoriaInput.value   = product.categoria || '';
+        if (presentacionInput) presentacionInput.value = product.presentacion || '';
 
         if (product.image) {
             productImage.src = product.image;
@@ -564,8 +602,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             productImage.style.display = 'none';
         }
         // Forzar refresh del label flotante
-        [barcodeInput, descriptionInput, stockInput, priceInput].forEach((i) => {
-            i.dispatchEvent(new Event('input'));
+        [barcodeInput, descriptionInput, stockInput, priceInput,
+         marcaInput, categoriaInput, presentacionInput].forEach((i) => {
+            if (i) i.dispatchEvent(new Event('input'));
         });
     }
 
@@ -599,6 +638,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             stock: parseInt(stockInput.value, 10) || 0,
             price: parseFloat(priceInput.value) || 0,
             image: (productImage.src && productImage.src !== window.location.href) ? productImage.src : '',
+            marca: (marcaInput?.value || '').trim(),
+            categoria: (categoriaInput?.value || '').trim(),
+            presentacion: (presentacionInput?.value || '').trim(),
         };
         await db.addProduct(product);
         showToast('Producto guardado correctamente.', 'success');
@@ -619,6 +661,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         descriptionInput.value = '';
         stockInput.value = '';
         priceInput.value = '';
+        if (marcaInput) marcaInput.value = '';
+        if (categoriaInput) categoriaInput.value = '';
+        if (presentacionInput) presentacionInput.value = '';
         productImage.src = '';
         productImageWrap.classList.remove('is-visible', 'has-image');
         productImage.style.display = 'none';
@@ -636,7 +681,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (activeFilter === 'zero')    filtered = filtered.filter((p) => (p.stock || 0) <= 0);
         if (term) filtered = filtered.filter((p) =>
             normalizeText(p.description || '').includes(normalizeText(term)) ||
-            normalizeText(p.barcode || '').includes(normalizeText(term))
+            normalizeText(p.barcode || '').includes(normalizeText(term)) ||
+            normalizeText(p.marca || '').includes(normalizeText(term)) ||
+            normalizeText(p.categoria || '').includes(normalizeText(term)) ||
+            normalizeText(p.presentacion || '').includes(normalizeText(term))
         );
 
         inventoryList.innerHTML = '';
@@ -664,9 +712,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             const estado = stockNum <= 0 ? 'Sin stock' : (stockNum <= 5 ? 'Stock bajo' : 'En stock');
             const estadoClass = stockNum <= 0 ? 'result-item__badge--danger' : (stockNum <= 5 ? 'result-item__badge--danger' : '');
 
+            const metaParts = [`<span class="result-item__badge ${estadoClass}">${estado}</span>`];
+            if (p.marca) metaParts.push(`<span class="result-item__brand">${escapeHtml(p.marca)}</span>`);
+            if (p.presentacion) metaParts.push(`<span>${escapeHtml(p.presentacion)}</span>`);
+            metaParts.push(`<span>${formatPrice(p.price)}</span>`);
+
             li.innerHTML = `
                 ${p.image ?
-                    `<img class="result-item__img" src="${escapeHtml(p.image)}" alt="" onerror="this.style.display='none'">` :
+                    `<img class="result-item__img" src="${escapeHtml(p.image)}" alt="" onerror="this.classList.add('hidden')">` :
                     `<div class="result-item__img-placeholder">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
                     </div>`
@@ -674,10 +727,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 <div>
                     <div class="result-item__name">${escapeHtml(p.description || 'Sin nombre')}</div>
                     <div class="result-item__meta">
-                        <span class="result-item__badge ${estadoClass}">${estado}</span>
-                        <span>·</span>
-                        <span>${formatPrice(p.price)}</span>
+                        ${metaParts.join('<span class="result-item__sep">·</span>')}
                     </div>
+                    ${p.categoria ? `<div class="result-item__cat">${escapeHtml(p.categoria)}</div>` : ''}
                 </div>
                 <div class="result-item__price">x${stockNum}</div>
             `;
@@ -779,6 +831,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const stockKey = findKey(['Stock', 'stock']);
                     const priceKey = findKey(['Precio Costo', 'Precio', 'precio', 'price']);
                     const imageKey = findKey(['Imagen', 'imagen', 'image']);
+                    const marcaKey = findKey(['Marca', 'marca']);
+                    const categoriaKey = findKey(['Categoría', 'Categoria', 'categoría', 'categoria', 'category']);
+                    const presentacionKey = findKey(['Presentación', 'Presentacion', 'presentación', 'presentacion']);
                     if (!barcodeKey) continue;
                     try {
                         const newProduct = {
@@ -786,7 +841,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             description: product[descriptionKey] || '',
                             stock: parseInt(product[stockKey] || '0', 10),
                             price: parseFloat(product[priceKey] || '0') || 0,
-                            image: product[imageKey] || ''
+                            image: product[imageKey] || '',
+                            marca: product[marcaKey] || '',
+                            categoria: product[categoriaKey] || '',
+                            presentacion: product[presentacionKey] || '',
                         };
                         await db.addProduct(newProduct);
                         importedCount++;
@@ -816,8 +874,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const worksheet = XLSX.utils.json_to_sheet(allProducts.map(p => ({
             'Código de Barras': p.barcode,
             'Descripción':      p.description,
+            'Marca':            p.marca || '',
+            'Categoría':        p.categoria || '',
+            'Presentación':    p.presentacion || '',
             'Stock':            p.stock,
-            'Precio':           p.price
+            'Precio':           p.price,
+            'Imagen':           p.image || ''
         })));
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
