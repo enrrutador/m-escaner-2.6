@@ -6,16 +6,18 @@
    ============================================================ */
 
 :root {
-  /* Paleta principal (light) */
-  --color-primary: #0061F5;
+  /* Paleta principal (light) - multi-color 2026 */
+  --color-primary: #0061F5;        /* Blue */
   --color-primary-hover: #0047B3;
   --color-primary-container: #DEEBFF;
   --color-on-primary: #FFFFFF;
-  --color-accent: #FF6B35;
-  --color-error: #D32F2F;
-  --color-error-container: #FFDAD6;
-  --color-success: #00C853;
-  --color-warning: #FFB300;
+  --color-accent: #FF6B35;         /* Orange */
+  --color-error: #E53935;
+  --color-error-container: #FFEBEE;
+  --color-success: #00B894;        /* Teal-green */
+  --color-warning: #FDCB6E;        /* Yellow */
+  --color-purple: #8E5BFF;         /* Purple (intentos secundarios) */
+  --color-pink: #FF4D8D;            /* Pink (acentos) */
 
   /* Superficies */
   --color-bg: #F4F5F7;
@@ -26,6 +28,17 @@
   --color-on-surface-variant: #44474E;
   --color-outline: #74777F;
   --color-outline-variant: #C4C7CC;
+
+  /* Gradientes multi-color */
+  --gradient-primary: linear-gradient(135deg, #0061F5 0%, #5E5BFF 50%, #8E5BFF 100%);
+  --gradient-accent:  linear-gradient(135deg, #FF6B35 0%, #FF4D8D 100%);
+  --gradient-success: linear-gradient(135deg, #00B894 0%, #00C853 100%);
+  --gradient-hero:    linear-gradient(135deg, #0061F5 0%, #8E5BFF 50%, #FF4D8D 100%);
+  --gradient-fab:     linear-gradient(135deg, #0061F5 0%, #FF6B35 100%);
+  --gradient-bg-1: radial-gradient(at 0% 0%,   rgba(0, 97, 245, 0.18) 0%, transparent 50%);
+  --gradient-bg-2: radial-gradient(at 100% 0%,  rgba(255, 107, 53, 0.18) 0%, transparent 50%);
+  --gradient-bg-3: radial-gradient(at 50% 100%, rgba(142, 91, 255, 0.15) 0%, transparent 50%);
+  --gradient-bg-4: radial-gradient(at 100% 100%, rgba(255, 77, 141, 0.12) 0%, transparent 50%);
 
   /* Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.72);
@@ -57,7 +70,8 @@
   --elevation-2: 0 2px 4px rgba(0,0,0,0.08), 0 4px 8px rgba(0,0,0,0.12);
   --elevation-3: 0 4px 8px rgba(0,0,0,0.10), 0 8px 16px rgba(0,0,0,0.14);
   --elevation-4: 0 8px 16px rgba(0,0,0,0.12), 0 16px 32px rgba(0,0,0,0.16);
-  --elevation-fab: 0 8px 24px rgba(0,97,245,0.45);
+  --elevation-fab: 0 8px 24px rgba(0, 97, 245, 0.45);
+  --elevation-fab-accent: 0 8px 24px rgba(255, 107, 53, 0.45);
 
   /* Tipografía */
   --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
@@ -125,9 +139,10 @@ body {
   color: var(--color-on-surface);
   background: var(--color-bg);
   background-image:
-    radial-gradient(at 0% 0%, rgba(0, 97, 245, 0.15) 0%, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(255, 107, 53, 0.12) 0%, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(0, 200, 83, 0.08) 0%, transparent 50%);
+    var(--gradient-bg-1),
+    var(--gradient-bg-2),
+    var(--gradient-bg-3),
+    var(--gradient-bg-4);
   background-attachment: fixed;
   font-size: 16px;
   line-height: 1.5;
@@ -191,7 +206,7 @@ body {
   width: 36px;
   height: 36px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  background: var(--gradient-hero);
   display: grid;
   place-items: center;
   color: white;
@@ -254,7 +269,7 @@ body {
   width: 96px;
   height: 96px;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  background: var(--gradient-hero);
   display: grid;
   place-items: center;
   color: white;
@@ -266,7 +281,7 @@ body {
   position: absolute;
   inset: -8px;
   border-radius: var(--radius-full);
-  border: 2px solid var(--color-primary);
+  border: 2px solid var(--color-purple);
   opacity: 0.25;
   animation: pulse 2s var(--ease-standard) infinite;
 }
@@ -318,6 +333,11 @@ body {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btn--filled { background: var(--color-primary); color: var(--color-on-primary); }
+.btn--filled:hover { background: var(--color-primary-hover); }
+.btn--success { background: var(--gradient-success); color: white; box-shadow: var(--elevation-1); }
+.btn--success:hover { filter: brightness(1.05); }
+.btn--accent  { background: var(--gradient-accent); color: white; box-shadow: var(--elevation-1); }
+.btn--accent:hover { filter: brightness(1.05); }
 .btn--tonal  { background: var(--color-primary-container); color: var(--color-primary); }
 .btn--tonal:hover { background: var(--color-primary-container); filter: brightness(0.95); }
 .btn--outline {
@@ -500,12 +520,12 @@ body {
   height: 60px;
   border: none;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-hover));
+  background: var(--gradient-fab);
   color: white;
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: var(--elevation-fab);
+  box-shadow: var(--elevation-fab-accent);
   transform: translateY(-12px);
   transition: transform var(--dur-fast) var(--ease-bounce);
 }
@@ -660,7 +680,7 @@ body {
 }
 @keyframes scanline {
   0%, 100% { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5), inset 0 0 0 0 transparent; }
-  50%      { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5), inset 0 0 20px 2px rgba(255,107,53,0.4); }
+  50%      { box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5), inset 0 0 20px 2px rgba(255,77,141,0.5); }
 }
 
 .scanner-close {
@@ -829,15 +849,15 @@ body {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-full);
-  background: var(--color-primary);
+  background: var(--gradient-accent);
   color: var(--color-on-primary);
   cursor: pointer;
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  transition: background var(--dur-fast) var(--ease-standard);
+  transition: filter var(--dur-fast) var(--ease-standard);
 }
-.searchbar__btn:hover { background: var(--color-primary-hover); }
+.searchbar__btn:hover { filter: brightness(1.08); }
 .searchbar__btn:active { transform: scale(0.92); }
 
 /* ============================================================

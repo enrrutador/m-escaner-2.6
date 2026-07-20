@@ -1,7 +1,7 @@
 {
   "name": "M-Scanner 2.0",
   "short_name": "M-Scanner",
-  "description": "Escáner de códigos de barras e inventario con búsqueda en Coto, Jumbo, Carrefour y Farmacity.",
+  "description": "Escáner de códigos de barras e inventario con búsqueda automática de productos.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

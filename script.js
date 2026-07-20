@@ -369,23 +369,98 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    /* ---- Escáner de código de barras (BarcodeDetector) ---- */
+    /* ---- Escáner de código de barras (ZXing + BarcodeDetector fallback) ---- */
+    // ZXing funciona en iPhone Safari (iOS) vía WebRTC; BarcodeDetector
+    // es más rápido pero solo Android/Chrome. Usamos ZXing como primario.
+    let zxingReader = null;
+    let zxingControls = null;
+
     async function startScanner() {
+        try {
+            scannerContainer.classList.add('is-open');
+
+            // Preferencia: ZXing (soporta iOS Safari)
+            if (typeof ZXing !== 'undefined') {
+                startZXingScanner();
+                return;
+            }
+            // Fallback: BarcodeDetector API nativa (Android/Chrome)
+            if ('BarcodeDetector' in window) {
+                if (!barcodeDetector) {
+                    try {
+                        barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'upc_a'] });
+                    } catch (e) {
+                        barcodeDetector = new BarcodeDetector();
+                    }
+                }
+                startNativeScanner();
+                return;
+            }
+            showToast('Tu navegador no soporta escaneo de códigos.', 'error');
+            stopScanner();
+        } catch (error) {
+            console.error('Scanner error:', error);
+            showToast('No se pudo acceder a la cámara.', 'error');
+            stopScanner();
+        }
+    }
+
+    /* --- ZXing (multiplataforma, soporta iPhone) --- */
+    async function startZXingScanner() {
+        try {
+            // Redeclarar stream propio para ZXing (evita conflictos)
+            if (!zxingReader) {
+                zxingReader = new ZXing.BrowserMultiFormatReader();
+            }
+            // Usar la cámara trasera si existe (environment camera)
+            let deviceId = undefined;
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const cams = devices.filter(d => d.kind === 'videoinput');
+                if (cams.length > 0) {
+                    // Heurística: la última cámara suele ser la trasera en móviles
+                    deviceId = cams[cams.length - 1].deviceId;
+                }
+            } catch (_) {}
+
+            zxingControls = zxingReader.decodeFromVideoDevice(
+                deviceId,
+                video,
+                (result, err) => {
+                    if (result) {
+                        const code = result.getText();
+                        barcodeInput.value = code;
+                        stopScanner();
+                        searchProduct(code);
+                    }
+                }
+            );
+        } catch (error) {
+            console.error('ZXing scanner error:', error);
+            // Si ZXing falla y existe BarcodeDetector nativo, usarlo
+            if ('BarcodeDetector' in window) startNativeScanner();
+            else showToast('No se pudo iniciar el escáner.', 'error');
+        }
+    }
+
+    /* --- BarcodeDetector nativo (Android/Chrome) --- */
+    async function startNativeScanner() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: { ideal: 'environment' } }
             });
             video.srcObject = stream;
-            scannerContainer.classList.add('is-open');
             video.play();
-            scan();
+            requestAnimationFrame(scanNativeFrame);
         } catch (error) {
-            console.error('Scanner error:', error);
+            console.error('Native scanner error:', error);
             showToast('No se pudo acceder a la cámara.', 'error');
+            stopScanner();
         }
     }
 
-    async function scan() {
+    async function scanNativeFrame() {
+        if (!scannerContainer.classList.contains('is-open')) return;
         if (barcodeDetector && video.readyState === video.HAVE_ENOUGH_DATA) {
             try {
                 const barcodes = await barcodeDetector.detect(video);
@@ -397,32 +472,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             } catch (e) { /* ignore frame errors */ }
         }
-        if (scannerContainer.classList.contains('is-open')) {
-            requestAnimationFrame(scan);
-        }
+        requestAnimationFrame(scanNativeFrame);
     }
 
     function stopScanner() {
+        // Detener ZXing
+        if (zxingControls) {
+            try { zxingControls.stop(); } catch (_) {}
+            zxingControls = null;
+        }
+        if (zxingReader) {
+            try { zxingReader.reset(); } catch (_) {}
+        }
+        // Detener stream nativo
         const stream = video.srcObject;
         if (stream) stream.getTracks().forEach((track) => track.stop());
         video.srcObject = null;
         scannerContainer.classList.remove('is-open');
     }
 
-    if (scanButtonFab) scanButtonFab.addEventListener('click', async () => {
-        if (!('BarcodeDetector' in window)) {
-            showToast('Tu navegador no soporta escaneo de códigos.', 'error');
-            return;
-        }
-        if (!barcodeDetector) {
-            try {
-                barcodeDetector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'upc_a'] });
-            } catch (e) {
-                barcodeDetector = new BarcodeDetector();
-            }
-        }
-        startScanner();
-    });
+    if (scanButtonFab) scanButtonFab.addEventListener('click', startScanner);
 
     if (scannerClose) scannerClose.addEventListener('click', stopScanner);
 
@@ -446,7 +515,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (!product) {
-            // Buscar en Coto / Jumbo / Carrefour / Farmacity
+            // Buscar online (múltiples fuentes en paralelo)
             const onlineResults = await buscarEnSupermercados(query);
             if (onlineResults.length > 0) {
                 // Convertir resultado online al formato local y guardar el primero
@@ -471,7 +540,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             productNotFoundAlertShown = false;
         } else {
             if (!productNotFoundAlertShown) {
-                showToast('Producto no encontrado en Coto, Jumbo, Carrefour ni Farmacity.', 'error');
+                showToast('Producto no encontrado. Intentá con otro código o nombre.', 'error');
                 productNotFoundAlertShown = true;
             }
         }

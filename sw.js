@@ -1,6 +1,6 @@
 /* ©️ [2024] [SYSMARKETHM]. Todos los derechos reservados. Service Worker para M-Scanner 2.0 - Soporte offline + cache de APIs VTEX/Constructor.io */
 
-const CACHE_VERSION = 'mscanner-v2';
+const CACHE_VERSION = 'mscanner-v3';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -10,7 +10,9 @@ const STATIC_ASSETS = [
   './image/1.jpg',
   './image/icon-192.png',
   './image/icon-512.png',
-  'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js'
+  './image/apple-touch-icon.png',
+  'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js',
+  'https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js'
 ];
 
 const API_CACHE_NAME = 'mscanner-api-v2';
@@ -68,7 +70,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2) APIs de supermercados: network-first, cache fallback (stale-while-revalidate light)
+  // 2) APIs de los proveedores: network-first, cache fallback (stale-while-revalidate light)
+  // (Los nombres de dominio son de uso interno; no se exponen en la UI)
   if (API_ORIGINS.has(url.origin)) {
     event.respondWith(
       fetch(request).then((networkResponse) => {
@@ -82,8 +85,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 3) CDN de xlsx: stale-while-revalidate
-  if (url.origin === 'https://cdn.sheetjs.com' || url.origin === 'https://cdnjs.cloudflare.com') {
+  // 3) CDN de xlsx y ZXing: stale-while-revalidate
+  if (url.origin === 'https://cdn.sheetjs.com' ||
+      url.origin === 'https://cdnjs.cloudflare.com' ||
+      url.origin === 'https://unpkg.com') {
     event.respondWith(
       caches.open(CACHE_VERSION).then((cache) =>
         cache.match(request).then((cached) => {
