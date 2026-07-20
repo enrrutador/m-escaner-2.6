@@ -1,23 +1,35 @@
 {
   "name": "M-Scanner 2.0",
   "short_name": "M-Scanner",
-  "description": "Escáner de códigos de barras e inventario",
+  "description": "Escáner de códigos de barras e inventario con búsqueda en Coto, Jumbo, Carrefour y Farmacity.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#eceff1",
-  "theme_color": "#0288D1",
+  "orientation": "portrait",
+  "background_color": "#F4F5F7",
+  "theme_color": "#0061F5",
+  "lang": "es-AR",
+  "categories": ["productivity", "business", "utilities"],
   "icons": [
+    { "src": "image/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "image/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "image/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "image/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
     {
-      "src": "image/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "Escanear producto",
+      "short_name": "Escanear",
+      "description": "Abrir la cámara para escanear un código de barras",
+      "url": "./index.html?action=scan",
+      "icons": [{ "src": "image/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "src": "image/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "name": "Ver inventario",
+      "short_name": "Productos",
+      "description": "Lista de productos guardados",
+      "url": "./index.html?action=productos",
+      "icons": [{ "src": "image/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

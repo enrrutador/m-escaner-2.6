@@ -1,9 +1,6 @@
-/* 
-  ©️ [2024] [SYSMARKETHM]. Todos los derechos reservados.
-  Service Worker para M-Scanner 2.0 - Soporte offline
-*/
+/* ©️ [2024] [SYSMARKETHM]. Todos los derechos reservados. Service Worker para M-Scanner 2.0 - Soporte offline + cache de APIs VTEX/Constructor.io */
 
-const CACHE_NAME = 'mscanner-v1';
+const CACHE_VERSION = 'mscanner-v2';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -11,14 +8,24 @@ const STATIC_ASSETS = [
   './script.js',
   './manifest.json',
   './image/1.jpg',
+  './image/icon-192.png',
+  './image/icon-512.png',
   'https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js'
 ];
 
-const API_CACHE_NAME = 'mscanner-api-v1';
+const API_CACHE_NAME = 'mscanner-api-v2';
+
+// Dominios de APIs que se cachean network-first (offline friendly)
+const API_ORIGINS = new Set([
+  'https://www.jumbo.com.ar',
+  'https://www.carrefour.com.ar',
+  'https://www.farmacity.com',
+  'https://ac.cnstrc.com',
+]);
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
+    caches.open(CACHE_VERSION)
       .then((cache) => cache.addAll(STATIC_ASSETS))
       .then(() => self.skipWaiting())
   );
@@ -26,48 +33,48 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
+    caches.keys()
+      .then((cacheNames) => Promise.all(
         cacheNames
-          .filter((name) => name !== CACHE_NAME && name !== API_CACHE_NAME)
+          .filter((name) => name !== CACHE_VERSION && name !== API_CACHE_NAME)
           .map((name) => caches.delete(name))
-      );
-    }).then(() => self.clients.claim())
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  if (request.method !== 'GET') return;
+
   const url = new URL(request.url);
 
+  // 1) Same-origin assets: cache-first (fallback a index.html para SPA)
   if (url.origin === location.origin) {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
         return fetch(request).then((networkResponse) => {
-          if (networkResponse.ok) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
+          if (networkResponse && networkResponse.ok) {
+            const clone = networkResponse.clone();
+            caches.open(CACHE_VERSION).then((c) => c.put(request, clone));
           }
           return networkResponse;
         }).catch(() => {
-          if (request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
+          if (request.mode === 'navigate') return caches.match('./index.html');
         });
       })
     );
     return;
   }
 
-  if (url.origin === 'https://world.openfoodfacts.org') {
+  // 2) APIs de supermercados: network-first, cache fallback (stale-while-revalidate light)
+  if (API_ORIGINS.has(url.origin)) {
     event.respondWith(
       fetch(request).then((networkResponse) => {
-        if (networkResponse.ok) {
-          const responseClone = networkResponse.clone();
-          caches.open(API_CACHE_NAME).then((cache) => cache.put(request, responseClone));
+        if (networkResponse && networkResponse.ok) {
+          const clone = networkResponse.clone();
+          caches.open(API_CACHE_NAME).then((c) => c.put(request, clone));
         }
         return networkResponse;
       }).catch(() => caches.match(request))
@@ -75,31 +82,28 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // 3) CDN de xlsx: stale-while-revalidate
   if (url.origin === 'https://cdn.sheetjs.com' || url.origin === 'https://cdnjs.cloudflare.com') {
     event.respondWith(
-      caches.match(request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse.ok) {
-            const responseClone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, responseClone));
-          }
-          return networkResponse;
-        });
-      })
+      caches.open(CACHE_VERSION).then((cache) =>
+        cache.match(request).then((cached) => {
+          const fetchPromise = fetch(request).then((networkResponse) => {
+            if (networkResponse && networkResponse.ok) {
+              cache.put(request, networkResponse.clone());
+            }
+            return networkResponse;
+          }).catch(() => cached);
+          return cached || fetchPromise;
+        })
+      )
     );
     return;
   }
 
-  event.respondWith(
-    fetch(request).catch(() => caches.match(request))
-  );
+  // 4) Default: try network, fallback to cache
+  event.respondWith(fetch(request).catch(() => caches.match(request)));
 });
 
 self.addEventListener('message', (event) => {
-  if (event.data === 'skipWaiting') {
-    self.skipWaiting();
-  }
+  if (event.data === 'skipWaiting') self.skipWaiting();
 });
