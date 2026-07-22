@@ -1,6 +1,6 @@
 /* ©️ [2024] [SYSMARKETHM]. Todos los derechos reservados. Service Worker para M-Scanner 2.0 - Soporte offline + cache de APIs VTEX/Constructor.io */
 
-const CACHE_VERSION = 'mscanner-v3';
+const CACHE_VERSION = 'mscanner-v4';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -42,6 +42,9 @@ self.addEventListener('activate', (event) => {
           .map((name) => caches.delete(name))
       ))
       .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: 'window' }).then((clients) => {
+        clients.forEach((client) => client.navigate(client.url));
+      }))
   );
 });
 
@@ -51,20 +54,18 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // 1) Same-origin assets: cache-first (fallback a index.html para SPA)
+  // 1) Same-origin assets: network-first, cache fallback (always fresh)
   if (url.origin === location.origin) {
     event.respondWith(
-      caches.match(request).then((cached) => {
-        if (cached) return cached;
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.ok) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_VERSION).then((c) => c.put(request, clone));
-          }
-          return networkResponse;
-        }).catch(() => {
-          if (request.mode === 'navigate') return caches.match('./index.html');
-        });
+      fetch(request).then((networkResponse) => {
+        if (networkResponse && networkResponse.ok) {
+          const clone = networkResponse.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(request, clone));
+        }
+        return networkResponse;
+      }).catch(() => {
+        if (request.mode === 'navigate') return caches.match('./index.html');
+        return caches.match(request);
       })
     );
     return;
