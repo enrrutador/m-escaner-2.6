@@ -24,6 +24,7 @@ const API_ORIGINS = new Set([
   'https://www.changomas.com.ar',
   'https://www.farmacity.com',
   'https://ac.cnstrc.com',
+  'https://cors.eu.org',
 ]);
 
 self.addEventListener('install', (event) => {

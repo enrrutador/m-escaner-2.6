@@ -113,6 +113,8 @@ function normalizeText(text) {
    CORS abierto (no necesita backend).
    ------------------------------------------------------------ */
 
+const CORS_PROXY = 'https://cors.eu.org/';
+
 const VTEX_STORES = {
     jumbo:     'https://www.jumbo.com.ar',
     carrefour: 'https://www.carrefour.com.ar',
@@ -121,14 +123,19 @@ const VTEX_STORES = {
 };
 
 const COTO_AUTOCOMPLETE = 'https://ac.cnstrc.com/autocomplete';
-// Constructor.io publica esta key en su frontend de Coto
 const COTO_KEY = 'key_Gpkd9CwgGwgJwPO';
-const TIMEOUT_MS = 6000;
+const TIMEOUT_MS = 8000;
 
-function fetchConTimeout(url, init) {
+/** Convierte ? → %3F y & → %26 para pasar URL como path del proxy */
+function corsUrl(rawUrl) {
+    return CORS_PROXY + rawUrl.replace(/\?/g, '%3F').replace(/&/g, '%26');
+}
+
+function fetchConTimeout(url, init, useCors = true) {
+    const finalUrl = useCors ? corsUrl(url) : url;
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-    return fetch(url, { ...(init || {}), signal: ctrl.signal })
+    return fetch(finalUrl, { ...(init || {}), signal: ctrl.signal })
         .finally(() => clearTimeout(t));
 }
 
