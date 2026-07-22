@@ -118,12 +118,9 @@ const CORS_PROXY = 'https://cors.eu.org/';
 const VTEX_STORES = {
     jumbo:     'https://www.jumbo.com.ar',
     carrefour: 'https://www.carrefour.com.ar',
-    changomas: 'https://www.changomas.com.ar',
     farmacity: 'https://www.farmacity.com',
 };
 
-const COTO_AUTOCOMPLETE = 'https://ac.cnstrc.com/autocomplete';
-const COTO_KEY = 'key_Gpkd9CwgGwgJwPO';
 const TIMEOUT_MS = 8000;
 
 /** Convierte ? → %3F y & → %26 para pasar URL como path del proxy */
@@ -220,33 +217,6 @@ async function buscarVtexCatalog(fuente, base, q) {
     }
 }
 
-async function buscarCoto(q) {
-    try {
-        const url = `${COTO_AUTOCOMPLETE}/${encodeURIComponent(q)}?key=${COTO_KEY}&num_results=3`;
-        const res = await fetchConTimeout(url);
-        if (!res.ok) return [];
-        const data = await res.json();
-        const items = data?.sections?.Products ?? [];
-        return items.map((it) => {
-            const nombreClean = (it.value || '').trim();
-            const presentMatch = nombreClean.match(/\b(\d+(?:[.,]\d+)?\s?(?:ml|cc|l|lt|ltr|kg|g|gr|mg|un|u|pzas|pz|pack|pack\s?\d+))\b/i);
-            return {
-                nombre: it.value ?? 'Sin nombre',
-                codigoBarras: it.data?.ean ?? undefined,
-                imagen: it.data?.image_url ?? undefined,
-                precio: it.data?.price ?? undefined,
-                marca: it.data?.brand ?? undefined,
-                presentacion: presentMatch ? presentMatch[0] : undefined,
-                url: it.data?.url ? (it.data.url.startsWith('http') ? it.data.url : `https://www.cotodigital3.com.ar${it.data.url}`) : undefined,
-                fuente: 'coto',
-            };
-        });
-    } catch (e) {
-        console.error('[buscar] coto error:', e);
-        return [];
-    }
-}
-
 function deduplicar(resultados) {
     const mapa = new Map();
     for (const r of resultados) {
@@ -262,36 +232,46 @@ function deduplicar(resultados) {
 }
 
 /**
- * Busca el producto en Coto, Jumbo, Carrefour y Farmacity.
+ * Busca el producto en Jumbo, Carrefour y Farmacity via VTEX Intelligent Search.
  * Devuelve array de ResultadoBusqueda. La UI decide qué hacer.
  */
 async function buscarEnSupermercados(q) {
+    console.log(`[buscar] Iniciando búsqueda para: "${q}"`);
+
     const settled = await Promise.allSettled([
         buscarVtexIntelligent('jumbo',     VTEX_STORES.jumbo,     q),
         buscarVtexIntelligent('carrefour', VTEX_STORES.carrefour, q),
-        buscarVtexIntelligent('changomas', VTEX_STORES.changomas, q),
         buscarVtexIntelligent('farmacity', VTEX_STORES.farmacity, q),
-        buscarCoto(q),
     ]);
 
     const todos = [];
     for (const s of settled) {
-        if (s.status === 'fulfilled') todos.push(...s.value);
-    }
-
-    if (todos.length === 0) {
-        const fallback = await Promise.allSettled([
-            buscarVtexCatalog('jumbo',     VTEX_STORES.jumbo,     q),
-            buscarVtexCatalog('carrefour', VTEX_STORES.carrefour, q),
-            buscarVtexCatalog('changomas', VTEX_STORES.changomas, q),
-            buscarVtexCatalog('farmacity', VTEX_STORES.farmacity, q),
-        ]);
-        for (const s of fallback) {
-            if (s.status === 'fulfilled') todos.push(...s.value);
+        if (s.status === 'fulfilled' && s.value.length > 0) {
+            console.log(`[buscar] ✓ ${s.value[0].fuente}: ${s.value.length} resultados`);
+            todos.push(...s.value);
+        } else if (s.status === 'rejected') {
+            console.warn(`[buscar] ✗ fuente rechazada:`, s.reason);
         }
     }
 
-    return deduplicar(todos);
+    if (todos.length === 0) {
+        console.log('[buscar] Sin resultados en Intelligent Search, probando Catalog fallback...');
+        const fallback = await Promise.allSettled([
+            buscarVtexCatalog('jumbo',     VTEX_STORES.jumbo,     q),
+            buscarVtexCatalog('carrefour', VTEX_STORES.carrefour, q),
+            buscarVtexCatalog('farmacity', VTEX_STORES.farmacity, q),
+        ]);
+        for (const s of fallback) {
+            if (s.status === 'fulfilled' && s.value.length > 0) {
+                console.log(`[buscar] ✓ catalog ${s.value[0].fuente}: ${s.value.length} resultados`);
+                todos.push(...s.value);
+            }
+        }
+    }
+
+    const final = deduplicar(todos);
+    console.log(`[buscar] Total deduplicados: ${final.length}`, final);
+    return final;
 }
 
 /* ------------------------------------------------------------
@@ -369,6 +349,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     let barcodeDetector;
     let productNotFoundAlertShown = false;
     const cache = new Map();
+
+    /* ---- Test de conectividad del proxy (diagnóstico) ---- */
+    (async function testProxy() {
+        try {
+            const testUrl = CORS_PROXY + 'https://www.jumbo.com.ar/api/io/_v/api/intelligent-search/product_search/%3Flocale%3Des-AR%26query%3D7790580888411';
+            const res = await fetch(testUrl, { signal: AbortSignal.timeout(5000) });
+            const data = await res.json();
+            const ok = data?.products?.length > 0;
+            console.log(`[proxy] ${ok ? '✓ OK' : '✗ Sin datos'}: ${testUrl.slice(0, 80)}...`);
+            if (!ok) console.warn('[proxy] Respuesta inesperada:', data);
+        } catch (e) {
+            console.warn('[proxy] Error de conexión (no crítico, se reintenta al buscar):', e.message);
+        }
+    })();
 
     /* ---- Ripple global para botones ---- */
     document.querySelectorAll('.btn, .fab, .searchbar__btn, .topbar__action').forEach((b) => {
@@ -556,6 +550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (!product) {
+            showToast('Buscando producto en línea...', '');
             // Buscar online (múltiples fuentes en paralelo)
             const onlineResults = await buscarEnSupermercados(query);
             if (onlineResults.length > 0) {
