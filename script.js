@@ -116,6 +116,7 @@ function normalizeText(text) {
 const VTEX_STORES = {
     jumbo:     'https://www.jumbo.com.ar',
     carrefour: 'https://www.carrefour.com.ar',
+    changomas: 'https://www.changomas.com.ar',
     farmacity: 'https://www.farmacity.com',
 };
 
@@ -261,6 +262,7 @@ async function buscarEnSupermercados(q) {
     const settled = await Promise.allSettled([
         buscarVtexIntelligent('jumbo',     VTEX_STORES.jumbo,     q),
         buscarVtexIntelligent('carrefour', VTEX_STORES.carrefour, q),
+        buscarVtexIntelligent('changomas', VTEX_STORES.changomas, q),
         buscarVtexIntelligent('farmacity', VTEX_STORES.farmacity, q),
         buscarCoto(q),
     ]);
@@ -274,6 +276,7 @@ async function buscarEnSupermercados(q) {
         const fallback = await Promise.allSettled([
             buscarVtexCatalog('jumbo',     VTEX_STORES.jumbo,     q),
             buscarVtexCatalog('carrefour', VTEX_STORES.carrefour, q),
+            buscarVtexCatalog('changomas', VTEX_STORES.changomas, q),
             buscarVtexCatalog('farmacity', VTEX_STORES.farmacity, q),
         ]);
         for (const s of fallback) {
