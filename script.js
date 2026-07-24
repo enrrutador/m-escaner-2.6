@@ -604,7 +604,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         if (!product) {
-            showToast('Buscando producto en línea...', '');
             // Buscar online (múltiples fuentes en paralelo)
             const onlineResults = await buscarEnSupermercados(query, isBarcode);
             if (onlineResults.length > 0) {
@@ -634,7 +633,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             productNotFoundAlertShown = false;
         } else {
             if (!productNotFoundAlertShown) {
-                showToast('Producto no encontrado. Intentá con otro código o nombre.', 'error');
+                showToast('Producto no encontrado', 'error');
                 productNotFoundAlertShown = true;
             }
         }
@@ -671,8 +670,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const query = (barcodeInput.value || '').trim() || (descriptionInput.value || '').trim();
         if (query) {
             searchProduct(query);
-        } else {
-            showToast('Ingresá un código de barras o nombre.', 'warning');
         }
     });
 
@@ -688,7 +685,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const barcode = (barcodeInput.value || '').trim();
         const description = (descriptionInput.value || '').trim();
         if (!barcode && !description) {
-            showToast('Ingresá al menos un código o descripción.', 'warning');
             return;
         }
         const product = {
@@ -702,7 +698,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             presentacion: (presentacionInput?.value || '').trim(),
         };
         await db.addProduct(product);
-        showToast('Producto guardado correctamente.', 'success');
         clearForm();
         // Refrescar vistas si están abiertas
         if (document.getElementById('view-productos').classList.contains('is-active')) {
@@ -879,7 +874,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const worksheet = workbook.Sheets[firstSheetName];
                 const products = XLSX.utils.sheet_to_json(worksheet);
                 if (!products.length) {
-                    showToast('El archivo no contiene productos.', 'warning');
                     return;
                 }
                 let importedCount = 0;
@@ -911,14 +905,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         console.error('Error al agregar producto:', product, err);
                     }
                 }
-                showToast(`Importación completada. ${importedCount} productos.`, 'success');
+                showToast(`Importados: ${importedCount} productos.`, 'success');
                 renderInventory();
             } catch (error) {
                 console.error('Error durante la importación:', error);
-                showToast('Error durante la importación.', 'error');
             }
         };
-        reader.onerror = () => showToast('Error al leer el archivo.', 'error');
+        reader.onerror = () => console.error('Error al leer el archivo.');
         reader.readAsArrayBuffer(file);
         // Reset input para permitir re-importar el mismo archivo
         fileInput.value = '';
@@ -927,7 +920,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (exportButton) exportButton.addEventListener('click', async () => {
         const allProducts = await db.getAllProducts();
         if (allProducts.length === 0) {
-            showToast('No hay productos para exportar.', 'warning');
             return;
         }
         const worksheet = XLSX.utils.json_to_sheet(allProducts.map(p => ({
@@ -943,7 +935,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Productos");
         XLSX.writeFile(workbook, "productos_exportados.xlsx");
-        showToast('Exportado correctamente.', 'success');
     });
 
     /* ---- Carga inicial: inventario y stock bajo (en background) ---- */
