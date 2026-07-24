@@ -4,8 +4,8 @@
    M-Scanner 2.0 - Lógica principal
    - Base de datos local: IndexedDB (ProductDatabase)
    - Escáner: BarcodeDetector API
-   - Búsqueda online: VTEX Intelligent Search (Jumbo, Carrefour,
-     Farmacity) + Constructor.io (Coto)
+   - Búsqueda online: OpenFoodFacts (EAN) + VTEX Intelligent Search
+     (Jumbo, Carrefour, Farmacy) por texto/nombre
    - Import / Export Excel (SheetJS)
    ============================================================ */
 
@@ -140,6 +140,51 @@ function normalizarNombre(nombre) {
     return (nombre || '').trim().toLowerCase().slice(0, 30);
 }
 
+/**
+ * Busca un producto por EAN en OpenFoodFacts.
+ * OpenFoodFacts tiene CORS abierto (access-control-allow-origin: *)
+ * por lo que no necesita proxy. Solo busca por codigo de barras.
+ * Devuelve un array de ResultadoBusqueda (0 o 1 elemento).
+ */
+async function buscarOpenFoodFacts(ean) {
+    try {
+        const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(ean)}.json?fields=product_name,brands,image_url,image_front_url,image_front_small_url,categories,quantity`;
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        const res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!res.ok) return [];
+        const data = await res.json();
+        if (data.status !== 1) {
+            console.log(`[buscar] OpenFoodFacts: EAN ${ean} no encontrado`);
+            return [];
+        }
+        const p = data.product || {};
+        const nombre = p.product_name || '';
+        if (!nombre) return [];
+        const imagen = p.image_url || p.image_front_url || p.image_front_small_url || '';
+        const marca = (p.brands || '').split(',')[0].trim();
+        const categoria = (p.categories || '').split(',').pop().trim() || undefined;
+        const presentacion = p.quantity || undefined;
+        console.log(`[buscar] ✓ OpenFoodFacts: "${nombre}" (${marca})`);
+        return [{
+            nombre,
+            codigoBarras: ean,
+            imagen: imagen || undefined,
+            descripcion: undefined,
+            precio: undefined,
+            marca: marca || undefined,
+            categoria,
+            presentacion,
+            url: `https://world.openfoodfacts.org/product/${ean}`,
+            fuente: 'openfoodfacts',
+        }];
+    } catch (e) {
+        console.warn(`[buscar] OpenFoodFacts error:`, e.message);
+        return [];
+    }
+}
+
 async function buscarVtexIntelligent(fuente, base, q) {
     try {
         const url = `${base}/api/io/_v/api/intelligent-search/product_search/?locale=es-AR&query=${encodeURIComponent(q)}`;
@@ -232,11 +277,21 @@ function deduplicar(resultados) {
 }
 
 /**
- * Busca el producto en Jumbo, Carrefour y Farmacity via VTEX Intelligent Search.
+ * Busca el producto en OpenFoodFacts (si es EAN) y en Jumbo, Carrefour
+ * y Farmacity via VTEX Intelligent Search.
  * Devuelve array de ResultadoBusqueda. La UI decide qué hacer.
  */
-async function buscarEnSupermercados(q) {
-    console.log(`[buscar] Iniciando búsqueda para: "${q}"`);
+async function buscarEnSupermercados(q, isBarcode = false) {
+    console.log(`[buscar] Iniciando búsqueda para: "${q}" (EAN: ${isBarcode})`);
+
+    const todos = [];
+
+    if (isBarcode) {
+        const off = await buscarOpenFoodFacts(q);
+        if (off.length > 0) {
+            return off;
+        }
+    }
 
     const settled = await Promise.allSettled([
         buscarVtexIntelligent('jumbo',     VTEX_STORES.jumbo,     q),
@@ -244,7 +299,6 @@ async function buscarEnSupermercados(q) {
         buscarVtexIntelligent('farmacity', VTEX_STORES.farmacity, q),
     ]);
 
-    const todos = [];
     for (const s of settled) {
         if (s.status === 'fulfilled' && s.value.length > 0) {
             console.log(`[buscar] ✓ ${s.value[0].fuente}: ${s.value.length} resultados`);
@@ -552,7 +606,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!product) {
             showToast('Buscando producto en línea...', '');
             // Buscar online (múltiples fuentes en paralelo)
-            const onlineResults = await buscarEnSupermercados(query);
+            const onlineResults = await buscarEnSupermercados(query, isBarcode);
             if (onlineResults.length > 0) {
                 // Convertir resultado online al formato local y guardar el primero
                 const r = onlineResults[0];

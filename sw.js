@@ -1,6 +1,6 @@
 /* ©️ [2024] [SYSMARKETHM]. Todos los derechos reservados. Service Worker para M-Scanner 2.0 - Soporte offline + cache de APIs VTEX/Constructor.io */
 
-const CACHE_VERSION = 'mscanner-v4';
+const CACHE_VERSION = 'mscanner-v5';
 const STATIC_ASSETS = [
   './',
   './index.html',
@@ -23,6 +23,7 @@ const API_ORIGINS = new Set([
   'https://www.carrefour.com.ar',
   'https://www.farmacity.com',
   'https://cors.eu.org',
+  'https://world.openfoodfacts.org',
 ]);
 
 self.addEventListener('install', (event) => {
