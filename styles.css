@@ -93,6 +93,63 @@
 }
 
 /* ============================================================
+   App-like behavior (PWA se siente como APK nativo)
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  /* Prevenir zoom en iOS al hacer focus en inputs */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  /* App-like: sin scroll horizontal, sin pull-to-refresh, sin selección de texto en UI */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Permitir selección solo en inputs y textareas */
+input,
+textarea,
+[contenteditable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Evitar zoom en iOS en inputs (font-size >= 16px evita zoom automático) */
+input,
+select,
+textarea {
+  font-size: 16px;
+}
+
+/* Scroll suave nativo */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Evitar momentum scrolling en body */
+body {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Focus visible accesible pero limpio */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ============================================================
    DARK MODE (sistem prefer)
    ============================================================ */
 @media (prefers-color-scheme: dark) {
@@ -132,6 +189,8 @@ html, body {
   height: 100%;
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -152,6 +211,10 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 #app-container {
@@ -387,6 +450,8 @@ body {
   transition: border var(--dur-fast) var(--ease-standard),
               box-shadow var(--dur-fast) var(--ease-standard);
   min-height: 56px;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .field input:focus,
 .field textarea:focus {
@@ -858,6 +923,8 @@ body {
   font-size: 1rem;
   color: var(--color-on-surface);
   padding: var(--space-2) 0;
+  user-select: text;
+  -webkit-user-select: text;
 }
 .searchbar input::placeholder { color: var(--color-on-surface-variant); }
 .searchbar__btn {
